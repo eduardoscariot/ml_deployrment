@@ -1,0 +1,11 @@
+Rodar no PowerShell Como Adm
+Set-ExecutionPolicy Unrestricted
+
+Para iniciar
+venv\Scripts\Activate.ps1
+
+Para rodar o Streamlit
+python -m streamlit hello
+
+Para rodar um arquivo local meu
+streamlit run .\app.py
