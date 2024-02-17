@@ -1,9 +1,12 @@
 import streamlit as st
-import data_handler 
+# import data_handler 
 import util
 import matplotlib.pyplot as plt
 import pandas as pd
-import pickle
+import requests
+import json
+
+API_URL = "http://127.0.0.1:8000"
 
 if not util.check_password():
     st.stop()  # Do not continue if check_password is not True.
@@ -11,9 +14,20 @@ if not util.check_password():
 # Main Streamlit app starts here
 st.title('App dos dados do Titanic')
 data_analyses_on = st.toggle('Exibir análise dos dados')
-dados = data_handler.load_data()
-model = pickle.load(open('./models/model.pkl', 'rb'))
 
+# Recuperar os dados do Titanic
+response = requests.get(f"{API_URL}/get-titanic-data")
+if response.status_code != 200:
+    msg = f"Falha ao recuperar os dados: {response.status_code}"
+    print(msg)
+    raise msg
+dados_json = json.loads(response.json())
+dados = pd.DataFrame(dados_json)
+
+# # Recuperar o modelo
+# model = pickle.load(open('./models/model.pkl', 'rb'))
+
+# Montar layout
 if data_analyses_on:
 
     st.dataframe(dados)
@@ -63,41 +77,31 @@ with col1:
 with col2:
     submit = st.button("Verificar")
 
-p_class_map = {
-    '1st': 1, 
-    '2nd': 2, 
-    '3rd': 3
-}
-sex_map = {
-    'Male': 0,
-    'Female': 1,
-}
-embarked_map = {
-    'Cherbourg': 0, 
-    'Queenstown': 1, 
-    'Southampton': 2
-}
 passageiro = {}
 if submit or 'survived' in st.session_state:
     passageiro = {
-        'Pclass': p_class_map[p_class],
-        'Sex': sex_map[sex],
+        'Pclass': p_class,
+        'Sex': sex,
         'Age': age,
         'SibSp': sib_sp,
         'Parch': par_ch,
         'Fare': fare,
-        'Embarked': embarked_map[embarked]
+        'Embarked': embarked
     }
 
-    st.write(passageiro)
+    passageiro_json = json.dumps(passageiro)
+    response = requests.post(f"{API_URL}/predict", json=passageiro_json)
+    result = None
 
-    values = pd.DataFrame([passageiro])
-    st.dataframe(values)
+    if response.status_code != 200:
+        msg = f"Falha ao efetuar a predição: {response.status_code}"
+        print(msg)
+        raise msg
+    
+    result = response.json()
 
-    results = model.predict(values)
-
-    if len(results) == 1:
-        survived = int(results[0])
+    if result is not None:
+        survived = result
 
         if survived == 1:
             st.subheader("Passageiro sobreviveu! 🙌😎")
@@ -132,7 +136,13 @@ if submit or 'survived' in st.session_state:
             passageiro['Survived'] = st.session_state['survived']
             st.write(message)
             
-            data_handler.save_prediction(passageiro)
+            # Salvar predição
+            # data_handler.save_prediction(passageiro)
+            response = requests.post(f"{API_URL}/save-prediction", json=json.dumps(passageiro))
+            if response.status_code != 200:
+                msg = f"Falha ao salvar a predição: {response.status_code}"
+                print(msg)
+                raise msg
 
 
     col1, col2, col3 = st.columns(3)
@@ -147,7 +157,15 @@ if submit or 'survived' in st.session_state:
 accuracy_prediction_on = st.toggle("Exibir acurácia")
 
 if accuracy_prediction_on:
-    predictions = data_handler.get_all_predictions()
+    # Recuperar as predições
+    #predictions = data_handler.get_all_predictions()
+    response = requests.get(f"{API_URL}/get-all-predictions")
+    if response.status_code != 200:
+        msg = f"Falha ao recuperar as predições: {response.status_code}"
+        print(msg)
+        raise msg
+    
+    predictions = response.json()
 
     num_total_predictions = len(predictions)
     correct_predictions = 0
